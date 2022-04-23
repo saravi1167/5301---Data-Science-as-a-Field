@@ -16,7 +16,6 @@ knitr::opts_chunk$set(echo=TRUE)
 ```
 
 # Import the data
-
 This document analyzes shooting incidents in New York City from 2006-2020. The data was obtained from <https://catalog.data.gov/>.
 ```{r dl_import, message=FALSE}
 url <- "https://data.cityofnewyork.us/api/views/833y-fsy8/rows.csv?accessType=DOWNLOAD" 
@@ -37,7 +36,6 @@ library(dplyr, formatR, tinytex)
 ```
 
 # Clean the data
-
 The summary of the data doesn't tell us much, but it shows there are columns such as characteristics of the people involved, coordinates, and jurisdiction related things that are unnecessary to the analysis.
 ```{r summary}
 summary(incidents)
