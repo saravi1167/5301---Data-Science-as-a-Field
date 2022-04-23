@@ -184,7 +184,7 @@ tot_sam <- data.frame('S.America'=sam_c, 'Cases'=as.numeric(tot_cases), 'Deaths'
 
 
 ```{r plotting, fig.height = 12, fig.width = 6}
-library(scales); library(ggplot2); library(ggrepel)
+library(scales); library(ggplot2); library(ggrepel); require(gridExtra)
 
 bp1 <- ggplot(tot_afr, aes(x=Africa, y=Cases, fill=Africa)) +
   coord_flip() + 
@@ -271,8 +271,6 @@ bp66 <- ggplot(tot_sam, aes(x=S.America, y=Deaths, fill=S.America)) +
   theme(legend.position = "none") + 
   scale_y_continuous(labels=comma, oob = rescale_none, limits=c(0, max(tot_sam$Deaths)))
 
-
-require(gridExtra)
 grid.arrange(bp1, bp11); grid.arrange(bp2, bp22); grid.arrange(bp3, bp33); grid.arrange(bp4, bp44); grid.arrange(bp5, bp55); grid.arrange(bp6, bp66)
 ```
 
@@ -282,7 +280,7 @@ Plotting the data over time can give much clearer perspectives on how the corona
 We can see Africa's rate seems to be consistently gaining with very few of its countries' death rate slowly falling. The rate of cases and deaths in most of the Asian countries follows a similar trajector to Africa's but at a much greater magnitude. Australia and Oceania's plot greatly shows how much they benefited from being separated from the main land mass.
 
 ```{r modeling, fig.height = 10, fig.width = 8}
-library(scales); library(ggplot2); library(ggrepel)
+library(scales); library(ggplot2); library(ggrepel); require(gridExtra)
 lp1 <- ggplot(afr, aes(x=Date, y=Amount)) + 
   xlab("Africa") +
   geom_point(aes(y=Cases, color='Cases')) + 
@@ -319,7 +317,6 @@ lp6 <- ggplot(sam, aes(x=Date, y=Amount)) +
   geom_point(aes(y=Deaths, color='Deaths'), alpha=0.3) + 
   scale_y_continuous(trans='log10', labels=comma)
 
-require(gridExtra)
 grid.arrange(lp1, lp2); grid.arrange(lp3, lp4); grid.arrange(lp5, lp6)
 ```
 
@@ -327,7 +324,7 @@ grid.arrange(lp1, lp2); grid.arrange(lp3, lp4); grid.arrange(lp5, lp6)
 A standard regression model was fit to this time-series Cases data to estimate the rate at which the values are rising as shown below.
 
 ```{r over_time2}
-library(reshape2); library(tidyverse); library(scales); library(ggplot2)
+library(reshape2); library(tidyverse); library(scales); library(ggplot2); require(gridExtra)
 
 afr <- mutate(afr, Pred_c=predict(lm(Cases ~ Date, data=afr)))
 asa <- mutate(asa, Pred_c=predict(lm(Cases ~ Date, data=asa)))
@@ -336,19 +333,18 @@ eur <- mutate(eur, Pred_c=predict(lm(Cases ~ Date, data=eur)))
 nam <- mutate(nam, Pred_c=predict(lm(Cases ~ Date, data=nam)))
 sam <- mutate(sam, Pred_c=predict(lm(Cases ~ Date, data=sam)))
 
-afr <- mutate(afr, Pred_d=predict(lm(Deaths ~ Date, data=afr)))
-asa <- mutate(asa, Pred_d=predict(lm(Deaths ~ Date, data=asa)))
-aus <- mutate(aus, Pred_d=predict(lm(Deaths ~ Date, data=aus)))
-eur <- mutate(eur, Pred_d=predict(lm(Deaths ~ Date, data=eur)))
-nam <- mutate(nam, Pred_d=predict(lm(Deaths ~ Date, data=nam)))
-sam <- mutate(sam, Pred_d=predict(lm(Deaths ~ Date, data=sam)))
+# afr <- mutate(afr, Pred_d=predict(lm(Deaths ~ Date, data=afr)))
+# asa <- mutate(asa, Pred_d=predict(lm(Deaths ~ Date, data=asa)))
+# aus <- mutate(aus, Pred_d=predict(lm(Deaths ~ Date, data=aus)))
+# eur <- mutate(eur, Pred_d=predict(lm(Deaths ~ Date, data=eur)))
+# nam <- mutate(nam, Pred_d=predict(lm(Deaths ~ Date, data=nam)))
+# sam <- mutate(sam, Pred_d=predict(lm(Deaths ~ Date, data=sam)))
 
 mp1 <- ggplot(afr, aes(x=Date, y=Amount)) +
   xlab("Africa") +
   geom_point(aes(y=Cases, color='Cases')) +
   geom_line(aes(y=Pred_c, color='Prediction')) +
   geom_point(aes(y=Pred_c, color='Prediction')) +
-#geom_point(aes(y=Deaths, color='Deaths'), alpha=0.3) +
   scale_y_continuous(trans='log10', labels=comma)
 
 mp2 <- ggplot(asa, aes(x=Date, y=Amount)) +
@@ -356,7 +352,6 @@ mp2 <- ggplot(asa, aes(x=Date, y=Amount)) +
   geom_point(aes(y=Cases, color='Cases')) +
   geom_line(aes(y=Pred_c, color='Prediction')) +
   geom_point(aes(y=Pred_c, color='Prediction')) +
-  #geom_point(aes(y=Deaths, color='Deaths'), alpha=0.3) +
   scale_y_continuous(trans='log10', labels=comma)
 
 mp3 <- ggplot(aus, aes(x=Date, y=Amount)) +
@@ -364,7 +359,6 @@ mp3 <- ggplot(aus, aes(x=Date, y=Amount)) +
   geom_point(aes(y=Cases, color='Cases')) +
   geom_line(aes(y=Pred_c, color='Prediction')) +
   geom_point(aes(y=Pred_c, color='Prediction')) +
-  #geom_point(aes(y=Deaths, color='Deaths'), alpha=0.3) +
   scale_y_continuous(trans='log10', labels=comma)
 
 mp4 <- ggplot(eur, aes(x=Date, y=Amount)) +
@@ -372,7 +366,6 @@ mp4 <- ggplot(eur, aes(x=Date, y=Amount)) +
   geom_point(aes(y=Cases, color='Cases')) +
   geom_line(aes(y=Pred_c, color='Prediction')) +
   geom_point(aes(y=Pred_c, color='Prediction')) +
-  #geom_point(aes(y=Deaths, color='Deaths'), alpha=0.3) +
   scale_y_continuous(trans='log10', labels=comma)
 
 mp5 <- ggplot(nam, aes(x=Date, y=Amount)) +
@@ -380,7 +373,6 @@ mp5 <- ggplot(nam, aes(x=Date, y=Amount)) +
   geom_point(aes(y=Cases, color='Cases')) +
   geom_line(aes(y=Pred_c, color='Prediction')) +
   geom_point(aes(y=Pred_c, color='Prediction')) +
-  #geom_point(aes(y=Deaths, color='Deaths'), alpha=0.3) +
   scale_y_continuous(trans='log10', labels=comma)
 
 mp6 <- ggplot(sam, aes(x=Date, y=Amount)) +
@@ -388,10 +380,8 @@ mp6 <- ggplot(sam, aes(x=Date, y=Amount)) +
   geom_point(aes(y=Cases, color='Cases')) +
   geom_line(aes(y=Pred_c, color='Prediction')) +
   geom_point(aes(y=Pred_c, color='Prediction')) +
-  #geom_point(aes(y=Deaths, color='Deaths'), alpha=0.3) +
   scale_y_continuous(trans='log10', labels=comma)
 
-require(gridExtra)
 grid.arrange(mp1, mp2); grid.arrange(mp3, mp4); grid.arrange(mp5, mp6)
 ```
 
