@@ -1,0 +1,403 @@
+---
+title: "COVID-19 Analysis"
+author: "S. Ravi"
+date: '2022-04-08'
+output:
+  html_document: default
+  pdf_document: default
+header-includes:
+  \usepackage{fvextra}
+  \DefineVerbatimEnvironment{Highlighting}{Verbatim}{breaklines,commandchars=\\\{\}}
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+knitr::opts_chunk$set(echo=TRUE)
+```
+
+# Import the data
+
+This document analyzes Johns Hopkins University's COVID-19 data. The data was obtained directly from their Center for Systems Science and Engineering GitHub page <https://github.com/CSSEGISandDATA/COVID-19/>.
+```{r dl_import, message=FALSE}
+url1 <- "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_confirmed_global.csv"
+url2 <- "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_deaths_global.csv"
+global <- read.csv(url1)
+deaths <- read.csv(url2)
+```
+
+All necessary packages listed below:
+```{r packages, eval=FALSE}
+#install.packages("egg")
+install.packages("dplyr")
+install.packages("formatR")
+install.packages("ggplot2")
+install.packages("ggrepel")
+install.packages("lubridate")
+install.packages("reshape2")
+install.packages("tinytex")
+install.packages("tidyverse")
+library(dplyr, formatR, lubridate, tinytex)
+```
+
+# Clean the data
+The summary of the data doesn't tell us much, but it shows there are a handful of unnecessary columns. We can also see that the arrangement of the data is in such a way that it shows the number of cases in each area for each date. I'm not interested in the local areas so I don't care about the Province/State column which allows me to reorganize the data such that it shows the number of cases for each date in each country as a repeating list. Also removing all the rows with zero cases yields about a 5% reduction in the available data.
+```{r clean}
+library(tidyverse)
+global <- pivot_longer(global, cols=-c('Province.State','Country.Region','Lat', 'Long'), names_to="Date",values_to="Cases")
+global <- select(global, -c('Province.State', 'Lat', 'Long'))
+
+deaths <- pivot_longer(deaths, cols=-c('Province.State','Country.Region','Lat', 'Long'), names_to="Date",values_to="Deaths")
+deaths <- select(deaths, -c('Province.State', 'Lat', 'Long'))
+
+## merge cases and deaths into one dataframe
+total <- full_join(global, deaths); total$Date <- as.Date(total$Date, format='X%m.%d.%y')
+clean <- total[(total$Cases>0),]
+
+summary(total); summary(clean)
+```
+
+
+# Analyze the data
+One thing to note is that the values in the Cases and Deaths columns look to be recurring tallies. In other words, I think they represent the current $total$ for a particular date instead of how many cases/deaths occurred on said date. For example, there would be weeks where the cases or deaths would stay at a set number and the chances of the same number of people being affected day in and day out in all the countries is extremely unlikely. So I added two additional columns that shows how many cases or deaths occurred on a particular day, essentially the difference between the current and former value. I believe this is a better representation to show the dramatic fluctuating impact of this virus. But, unfortunately, I wasn't able to figure out how to do these rolling calculations for each country without doing it the bruteforce way and writing tons of for-loops so I scrapped that idea.
+
+As there are almost 200  countries listed in this dataset, grouping them by country can give us a rough overview of how the cases are distributed across the globe. The countries were grouped via <https://www.countries-ofthe-world.com/>. Right away from looking at the bar plots below, we can see there are several countries across the world where data is missing. I wasn't sure why as I did not delete anything so I just ignored those for now, as they didn't affect the analysis significantly. 
+
+A pattern, if you can call it that, can be noticed in terms of the scale of the x-axis across the different continents. Despite each continent having numerous of countries with millions of people in each country, the range of the x-axis doesn't vary by more than one or two magnitudes. For example, only South Africa has cases that are significantly larger than the two subsequently leading countries, which themselves could be considered "outliers" when considering the remaining African countries. 
+
+Even Europe with its numerous countries only has its most "popular" countries exceeding a large number of cases. Obviously the sole outlier continent being North America. A case for the coronavirus being an airborne disease can be strengthened with just these simple bar plots. Despite Africa, Asia, and Europe geographically connected, the total number of cases in each continent varies drastically from 3 ~ 40 ~ 12 million, which also indirectly shows the most popular travel destinations and countries most susceptible.
+
+```{r group_by_country}
+afr_c <- factor(c("Algeria", "Angola", "Benin", "Botswana", "Burkina Faso", "Burundi", "Cabo Verde", "Cameroon", "Central African Republic", "Chad", "Comoros", "Congo (Kinshasa)", "Congo (Brazzaville)", "Cote d'Ivoire", "Djibouti", "Egypt", "Equatorial Guinea", "Eritrea", "Eswatini", "Ethiopia", "Gabon", "Gambia", "Ghana", "Guinea", "Guinea-Bissau", "Kenya", "Lesotho", "Liberia", "Libya", "Madagascar", "Malawi", "Mali", "Mauritania", "Mauritius", "Morocco", "Mozambique", "Namibia", "Niger", "Nigeria", "Rwanda", "Sao Tome and Principe", "Senegal", "Seychelles", "Sierra Leone", "Somalia", "South Africa", "South Sudan", "Sudan", "Tanzania", "Togo", "Tunisia", "Uganda", "Zambia", "Zimbabwe"))
+
+asa_c <- factor(c("Afghanistan", "Armenia", "Azerbaijan", "Bahrain", "Bangladesh", "Bhutan", "Brunei", "Cambodia", "China", "Cyprus", "Georgia", "India", "Indonesia", "Iran", "Iraq", "Israel", "Japan", "Jordan", "Kazakhstan", "Kuwait", "Kyrgyzstan", "Laos", "Lebanon", "Malaysia", "Maldives", "Mongolia", "Myanmar", "Nepal", "North Korea", "Oman", "Pakistan", "Palestine", "Philippines", "Qatar", "Russia", "Saudi Arabia", "Singapore", "South Korea", "Sri Lanka", "Syria", "Taiwan", "Tajikistan", "Thailand", "Timor-Leste", "Turkey", "Turkmenistan", "United Arab Emirates", "Uzbekistan", "Vietnam", "Yemen"))
+
+aus_c <- factor(c("Australia", "Fiji", "Kiribati", "Marshall Islands", "Micronesia", "Nauru", "New Zealand", "Palau", "Papua New Guinea", "Samoa", "Solomon Islands"))
+
+eur_c <- factor(c("Albania", "Andorra", "Armenia", "Austria", "Azerbaijan", "Belarus", "Belgium", "Bosnia and Herzegovina", "Bulgaria", "Croatia", "Cyprus", "Czechia", "Denmark", "Estonia", "Finland", "France", "Georgia", "Germany", "Greece", "Hungary", "Iceland", "Ireland", "Italy", "Kazakhstan", "Kosovo", "Latvia", "Liechtenstein", "Lithuania", "Luxembourg", "Malta", "Moldova", "Monaco", "Montenegro", "Netherlands", "North Macedonia", "Norway", "Poland", "Portugal", "Romania", "Russia", "San Marino", "Serbia", "Slovakia", "Slovenia", "Spain", "Sweden", "Switzerland", "Turkey", "Ukraine", "United Kingdom"))
+
+nam_c <- factor(c("Antigua and Barbuda", "Bahamas", "Barbados", "Belize", "Canada", "Costa Rica", "Cuba", "Dominica", "Dominican Republic", "El Salvador", "Grenada", "Guatemala", "Haiti", "Honduras", "Jamaica", "Mexico", "Nicaragua", "Panama", "Saint Kitts and Nevis", "Saint Lucia", "Saint Vincent and the Grenadines", "Trinidad and Tobago", "US"))
+
+sam_c <- factor(c("Argentina", "Bolivia", "Brazil", "Chile", "Colombia"))
+
+afr <- clean[clean$Country.Region %in% afr_c,]
+asa <- clean[clean$Country.Region %in% asa_c,]
+aus <- clean[clean$Country.Region %in% aus_c,]
+eur <- clean[clean$Country.Region %in% eur_c,]
+nam <- clean[clean$Country.Region %in% nam_c,]
+sam <- clean[clean$Country.Region %in% sam_c,]
+
+c <- 1; tot_cases <- list(); tot_deaths <- list()
+for(i in 1:length(afr_c)){
+  tb <- table(afr$Country.Region, dnn=list('Country'))
+  df <- as.data.frame(tb, responseName='Occurrence')
+  df$Index <- cumsum(tb)
+  for(j in df$Country){
+    if(afr$Country.Region[c] == j){
+      tot_cases <- rbind(tot_cases, afr$Cases[df$Index[c]])
+      tot_deaths <- rbind(tot_deaths, afr$Deaths[df$Index[c]])
+      c <- c+1
+    }
+  }
+}
+tot_afr <- data.frame('Africa'=afr_c, 'Cases'=as.numeric(tot_cases), 'Deaths'=as.numeric(tot_deaths))
+
+
+c <- 1; tot_cases <- list(); tot_deaths <- list()
+for(i in 1:length(asa_c)){
+  tb <- table(asa$Country.Region, dnn=list('Country'))
+  df <- as.data.frame(tb, responseName='Occurrence')
+  df$Index <- cumsum(tb)
+  for(j in df$Country){
+    if(asa$Country.Region[c] == j){
+      tot_cases <- rbind(tot_cases, asa$Cases[df$Index[c]])
+      tot_deaths <- rbind(tot_deaths, asa$Deaths[df$Index[c]])
+      c <- c+1
+    }
+  }
+}
+tot_asa <- data.frame('Asia'=asa_c, 'Cases'=as.numeric(tot_cases), 'Deaths'=as.numeric(tot_deaths))
+
+
+c <- 1; tot_cases <- list(); tot_deaths <- list()
+for(i in 1:length(aus_c)){
+  tb <- table(aus$Country.Region, dnn=list('Country'))
+  df <- as.data.frame(tb, responseName='Occurrence')
+  df$Index <- cumsum(tb)
+  for(j in df$Country){
+    if(aus$Country.Region[c] == j){
+      tot_cases <- rbind(tot_cases, aus$Cases[df$Index[c]])
+      tot_deaths <- rbind(tot_deaths, aus$Deaths[df$Index[c]])
+      c <- c+1
+    }
+  }
+}
+tot_aus <- data.frame('Australia.Oceania'=aus_c, 'Cases'=as.numeric(tot_cases), 'Deaths'=as.numeric(tot_deaths))
+
+
+c <- 1; tot_cases <- list(); tot_deaths <- list()
+for(i in 1:length(eur_c)){
+  tb <- table(eur$Country.Region, dnn=list('Country'))
+  df <- as.data.frame(tb, responseName='Occurrence')
+  df$Index <- cumsum(tb)
+  for(j in df$Country){
+    if(eur$Country.Region[c] == j){
+      tot_cases <- rbind(tot_cases, eur$Cases[df$Index[c]])
+      tot_deaths <- rbind(tot_deaths, eur$Deaths[df$Index[c]])
+      c <- c+1
+    }
+  }
+}
+tot_eur <- data.frame('Europe'=eur_c, 'Cases'=as.numeric(tot_cases), 'Deaths'=as.numeric(tot_deaths))
+
+
+c <- 1; tot_cases <- list(); tot_deaths <- list()
+for(i in 1:length(nam_c)){
+  tb <- table(nam$Country.Region, dnn=list('Country'))
+  df <- as.data.frame(tb, responseName='Occurrence')
+  df$Index <- cumsum(tb)
+  for(j in df$Country){
+    if(nam$Country.Region[c] == j){
+      tot_cases <- rbind(tot_cases, nam$Cases[df$Index[c]])
+      tot_deaths <- rbind(tot_deaths, nam$Deaths[df$Index[c]])
+      c <- c+1
+    }
+  }
+}
+tot_nam <- data.frame('N.America'=nam_c, 'Cases'=as.numeric(tot_cases), 'Deaths'=as.numeric(tot_deaths))
+
+
+c <- 1; tot_cases <- list(); tot_deaths <- list()
+for(i in 1:length(sam_c)){
+  tb <- table(sam$Country.Region, dnn=list('Country'))
+  df <- as.data.frame(tb, responseName='Occurrence')
+  df$Index <- cumsum(tb)
+  for(j in df$Country){
+    if(sam$Country.Region[c] == j){
+      tot_cases <- rbind(tot_cases, sam$Cases[df$Index[c]])
+      tot_deaths <- rbind(tot_deaths, sam$Deaths[df$Index[c]])
+      c <- c+1
+    }
+  }
+}
+tot_sam <- data.frame('S.America'=sam_c, 'Cases'=as.numeric(tot_cases), 'Deaths'=as.numeric(tot_deaths))
+```
+
+
+```{r plotting, fig.height = 12, fig.width = 6}
+library(scales); library(ggplot2); library(ggrepel)
+
+bp1 <- ggplot(tot_afr, aes(x=Africa, y=Cases, fill=Africa)) +
+  coord_flip() + 
+  labs(caption="S. Africa > 3.5m") +
+  geom_bar(stat="identity", position="dodge") + 
+  theme(legend.position = "none") + 
+  scale_y_continuous(labels=comma, oob = rescale_none, limits=c(0, 1200000))
+
+bp11 <- ggplot(tot_afr, aes(x=Africa, y=Deaths, fill=Africa)) +
+  coord_flip() + 
+  geom_bar(stat="identity", position="dodge") + 
+  theme(legend.position = "none") + 
+  scale_y_continuous(labels=comma, oob = rescale_none, limits=c(0, 110000))
+
+
+bp2 <- ggplot(tot_asa, aes(x=Asia, y=Cases, fill=Asia)) +
+  coord_flip() + 
+  labs(caption="India > 40m") +
+  geom_bar(stat="identity", position="dodge") + 
+  theme(legend.position = "none") + 
+  scale_y_continuous(labels=comma, oob = rescale_none, limits=c(0, 18000000))
+
+bp22 <- ggplot(tot_asa, aes(x=Asia, y=Deaths, fill=Asia)) +
+  coord_flip() + 
+  labs(caption="Palestine & India > 350k") +
+  geom_bar(stat="identity", position="dodge") + 
+  theme(legend.position = "none") + 
+  scale_y_continuous(labels=comma, oob = rescale_none, limits=c(0, 180000))
+
+
+bp3 <- ggplot(tot_aus, aes(x=Australia.Oceania, y=Cases, fill=Australia.Oceania)) +
+  coord_flip() + 
+  labs(caption="Nauru > 750k") +
+  geom_bar(stat="identity", position="dodge") + 
+  theme(legend.position = "none") + 
+  scale_y_continuous(labels=comma, oob = rescale_none, limits=c(0, 400000))
+
+bp33 <- ggplot(tot_aus, aes(x=Australia.Oceania, y=Deaths, fill=Australia.Oceania)) +
+  coord_flip() + 
+  geom_bar(stat="identity", position="dodge") + 
+  theme(legend.position = "none") + 
+  scale_y_continuous(labels=comma, oob = rescale_none, limits=c(0, 900))
+
+
+bp4 <- ggplot(tot_eur, aes(x=Europe, y=Cases, fill=Europe)) +
+  coord_flip() + 
+  labs(caption="All 6 > 12m") +
+  geom_bar(stat="identity", position="dodge") + 
+  theme(legend.position = "none") + 
+  scale_y_continuous(labels=comma, oob = rescale_none, limits=c(0, 13000000))
+
+bp44 <- ggplot(tot_eur, aes(x=Europe, y=Deaths, fill=Europe)) +
+  coord_flip() + 
+  labs(caption="Russia > 350k") +
+  geom_bar(stat="identity", position="dodge") + 
+  theme(legend.position = "none") + 
+  scale_y_continuous(labels=comma, oob = rescale_none, limits=c(0, 175000))
+
+
+bp5 <- ggplot(tot_nam, aes(x=N.America, y=Cases, fill=N.America)) +
+  coord_flip() + 
+  labs(caption="US > 80m") +
+  geom_bar(stat="identity", position="dodge") + 
+  theme(legend.position = "none") + 
+  scale_y_continuous(labels=comma, oob = rescale_none, limits=c(0, 6000000))
+
+bp55 <- ggplot(tot_nam, aes(x=N.America, y=Deaths, fill=N.America)) +
+  coord_flip() + 
+  labs(caption="US & Mexico > 300k") +
+  geom_bar(stat="identity", position="dodge") + 
+  theme(legend.position = "none") + 
+  scale_y_continuous(labels=comma, oob = rescale_none, limits=c(0, 20000))
+
+
+bp6 <- ggplot(tot_sam, aes(x=S.America, y=Cases, fill=S.America)) +
+  coord_flip() + 
+  geom_bar(stat="identity", position="dodge") + 
+  theme(legend.position = "none") + 
+  scale_y_continuous(labels=comma, oob = rescale_none, limits=c(0, max(tot_sam$Cases)))
+
+bp66 <- ggplot(tot_sam, aes(x=S.America, y=Deaths, fill=S.America)) +
+  coord_flip() + 
+  geom_bar(stat="identity", position="dodge") + 
+  theme(legend.position = "none") + 
+  scale_y_continuous(labels=comma, oob = rescale_none, limits=c(0, max(tot_sam$Deaths)))
+
+
+require(gridExtra)
+grid.arrange(bp1, bp11); grid.arrange(bp2, bp22); grid.arrange(bp3, bp33); grid.arrange(bp4, bp44); grid.arrange(bp5, bp55); grid.arrange(bp6, bp66)
+```
+
+## Over time
+Plotting the data over time can give much clearer perspectives on how the coronavirus has spread. I plotted each continent separately but merged all the countries in it into one. I plotted the deaths alongside as well. The cases rise quicker and greater than the deaths, as expected, but we can also get a rough picture of how the continents handled the virus. 
+
+We can see Africa's rate seems to be consistently gaining with very few of its countries' death rate slowly falling. The rate of cases and deaths in most of the Asian countries follows a similar trajector to Africa's but at a much greater magnitude. Australia and Oceania's plot greatly shows how much they benefited from being separated from the main land mass.
+
+```{r modeling, fig.height = 10, fig.width = 8}
+library(scales); library(ggplot2); library(ggrepel)
+lp1 <- ggplot(afr, aes(x=Date, y=Amount)) + 
+  xlab("Africa") +
+  geom_point(aes(y=Cases, color='Cases')) + 
+  geom_point(aes(y=Deaths, color='Deaths'), alpha=0.3) + 
+  scale_y_continuous(trans='log10', labels=comma)
+
+lp2 <- ggplot(asa, aes(x=Date, y=Amount)) + 
+  xlab("Asia") +
+  geom_point(aes(y=Cases, color='Cases')) + 
+  geom_point(aes(y=Deaths, color='Deaths'), alpha=0.3) + 
+  scale_y_continuous(trans='log10', labels=comma)
+
+lp3 <- ggplot(aus, aes(x=Date, y=Amount)) + 
+  xlab("Australia.Oceania") +
+  geom_point(aes(y=Cases, color='Cases')) + 
+  geom_point(aes(y=Deaths, color='Deaths'), alpha=0.3) + 
+  scale_y_continuous(trans='log10', labels=comma)
+
+lp4 <- ggplot(eur, aes(x=Date, y=Amount)) + 
+  xlab("Europe") +
+  geom_point(aes(y=Cases, color='Cases')) + 
+  geom_point(aes(y=Deaths, color='Deaths'), alpha=0.3) + 
+  scale_y_continuous(trans='log10', labels=comma)
+
+lp5 <- ggplot(nam, aes(x=Date, y=Amount)) + 
+  xlab("N. America") +
+  geom_point(aes(y=Cases, color='Cases')) + 
+  geom_point(aes(y=Deaths, color='Deaths'), alpha=0.3) +  
+  scale_y_continuous(trans='log10', labels=comma)
+
+lp6 <- ggplot(sam, aes(x=Date, y=Amount)) + 
+  xlab("S. America") +
+  geom_point(aes(y=Cases, color='Cases')) + 
+  geom_point(aes(y=Deaths, color='Deaths'), alpha=0.3) + 
+  scale_y_continuous(trans='log10', labels=comma)
+
+require(gridExtra)
+grid.arrange(lp1, lp2); grid.arrange(lp3, lp4); grid.arrange(lp5, lp6)
+```
+
+## Modeling
+A standard regression model was fit to this time-series Cases data to estimate the rate at which the values are rising as shown below.
+
+```{r over_time2}
+library(reshape2); library(tidyverse); library(scales); library(ggplot2)
+
+afr <- mutate(afr, Pred_c=predict(lm(Cases ~ Date, data=afr)))
+asa <- mutate(asa, Pred_c=predict(lm(Cases ~ Date, data=asa)))
+aus <- mutate(aus, Pred_c=predict(lm(Cases ~ Date, data=aus)))
+eur <- mutate(eur, Pred_c=predict(lm(Cases ~ Date, data=eur)))
+nam <- mutate(nam, Pred_c=predict(lm(Cases ~ Date, data=nam)))
+sam <- mutate(sam, Pred_c=predict(lm(Cases ~ Date, data=sam)))
+
+afr <- mutate(afr, Pred_d=predict(lm(Deaths ~ Date, data=afr)))
+asa <- mutate(asa, Pred_d=predict(lm(Deaths ~ Date, data=asa)))
+aus <- mutate(aus, Pred_d=predict(lm(Deaths ~ Date, data=aus)))
+eur <- mutate(eur, Pred_d=predict(lm(Deaths ~ Date, data=eur)))
+nam <- mutate(nam, Pred_d=predict(lm(Deaths ~ Date, data=nam)))
+sam <- mutate(sam, Pred_d=predict(lm(Deaths ~ Date, data=sam)))
+
+mp1 <- ggplot(afr, aes(x=Date, y=Amount)) +
+  xlab("Africa") +
+  geom_point(aes(y=Cases, color='Cases')) +
+  geom_line(aes(y=Pred_c, color='Prediction')) +
+  geom_point(aes(y=Pred_c, color='Prediction')) +
+#geom_point(aes(y=Deaths, color='Deaths'), alpha=0.3) +
+  scale_y_continuous(trans='log10', labels=comma)
+
+mp2 <- ggplot(asa, aes(x=Date, y=Amount)) +
+  xlab("Asia") +
+  geom_point(aes(y=Cases, color='Cases')) +
+  geom_line(aes(y=Pred_c, color='Prediction')) +
+  geom_point(aes(y=Pred_c, color='Prediction')) +
+  #geom_point(aes(y=Deaths, color='Deaths'), alpha=0.3) +
+  scale_y_continuous(trans='log10', labels=comma)
+
+mp3 <- ggplot(aus, aes(x=Date, y=Amount)) +
+  xlab("Australia.Oceania") +
+  geom_point(aes(y=Cases, color='Cases')) +
+  geom_line(aes(y=Pred_c, color='Prediction')) +
+  geom_point(aes(y=Pred_c, color='Prediction')) +
+  #geom_point(aes(y=Deaths, color='Deaths'), alpha=0.3) +
+  scale_y_continuous(trans='log10', labels=comma)
+
+mp4 <- ggplot(eur, aes(x=Date, y=Amount)) +
+  xlab("Europe") +
+  geom_point(aes(y=Cases, color='Cases')) +
+  geom_line(aes(y=Pred_c, color='Prediction')) +
+  geom_point(aes(y=Pred_c, color='Prediction')) +
+  #geom_point(aes(y=Deaths, color='Deaths'), alpha=0.3) +
+  scale_y_continuous(trans='log10', labels=comma)
+
+mp5 <- ggplot(nam, aes(x=Date, y=Amount)) +
+  xlab("N. America") +
+  geom_point(aes(y=Cases, color='Cases')) +
+  geom_line(aes(y=Pred_c, color='Prediction')) +
+  geom_point(aes(y=Pred_c, color='Prediction')) +
+  #geom_point(aes(y=Deaths, color='Deaths'), alpha=0.3) +
+  scale_y_continuous(trans='log10', labels=comma)
+
+mp6 <- ggplot(sam, aes(x=Date, y=Amount)) +
+  xlab("S. America") +
+  geom_point(aes(y=Cases, color='Cases')) +
+  geom_line(aes(y=Pred_c, color='Prediction')) +
+  geom_point(aes(y=Pred_c, color='Prediction')) +
+  #geom_point(aes(y=Deaths, color='Deaths'), alpha=0.3) +
+  scale_y_continuous(trans='log10', labels=comma)
+
+require(gridExtra)
+grid.arrange(mp1, mp2); grid.arrange(mp3, mp4); grid.arrange(mp5, mp6)
+```
+
+# Results
+Places like India, China, countries with exponential growth, and countries failing to provide/not having data heavily influences this regression model but despite such a rudimentary model fit to a vast collection of data, the predictions do surprisingly well in following the trend lines. Another place where a much more defined model is needed is Australia and Oceania. Because they were able to combat and maintain the spread, their case rates are mostly flat. But the multiple waves and new variants that we are experiencing is quite evident on their data as we can see strong spikes in last fall and early this year. The current model does not account for this, so this fit is very poor. On the other hand, unfortunately for them, South America's trend lines are fit perfectly by this model, which indicates the countries were able to do little to prevent the rapid spread. 
+
+Just from this simple analysis into this COVID-19 data, we were able to gain quite a bit of insight into how countries around the world are dealing with this virus and how it's impacting them. Bar graphs are very useful in comparing differences in quantities so seeing the differences in the countries' cases and deaths can inform us on how they are able to manage their cases whilst line graphs showed us day-to-day changes and which countries were struggling. Some countries in Australia and Oceania or in Europe had severe cases, compared to their neighboring countries, but managed to handle the virus more so such that their deaths were in fact lower than their neighbors.
+
+There are certainly biases in this dataset, the obvious one being China not providing any further data. Apart from that, there could be millions of cases not being reported due to people being asymptomatic, not thinking their illness is COVID-related, not wanting to, etc. This could drastically alter the plots and affect models and future projections as they're based on prior knowledge. I would like to believe I haven't injected any personal bias whilst analyzing this dataset, or if I continued to. I did not come into this analysis with a specific mindset or question I wanted to answer but only to understand the spread of this virus.
